@@ -58,7 +58,7 @@ class AppsViewModel(application: Application) : AndroidViewModel(application) {
     fun updateAppList() {
         viewModelScope.launch {
             postRefreshState(true)
-            apps.postValue(HPackages.getInstalledApplications())
+            apps.postValue(HPackages.getInstalledApplications(HailData.filterShowClones && HailData.workingMode.startsWith(HailData.SU)))
         }
     }
 
@@ -81,7 +81,7 @@ class AppsViewModel(application: Application) : AndroidViewModel(application) {
 
     private val ApplicationInfo.isSystemApp: Boolean
         get() = flags and ApplicationInfo.FLAG_SYSTEM == ApplicationInfo.FLAG_SYSTEM
-    private val ApplicationInfo.isAppFrozen get() = AppManager.isAppFrozen(packageName)
+    private val ApplicationInfo.isAppFrozen get() = AppManager.isAppFrozen(this)
 
     private suspend fun filterList(
         appList: List<ApplicationInfo>,
@@ -95,6 +95,8 @@ class AppsViewModel(application: Application) : AndroidViewModel(application) {
 
                         && ((HailData.filterFrozenApps && it.isAppFrozen)
                         || (HailData.filterUnfrozenApps && !it.isAppFrozen))
+
+                        && (HailData.filterShowClones && HailData.workingMode.startsWith(HailData.SU) || it.uid / 100000 == HPackages.myUserId)
                         // Search apps
                         && ((HailData.nineKeySearch
                         && (NineKeySearch.search(query, it.packageName, it.loadLabel(pm).toString())))

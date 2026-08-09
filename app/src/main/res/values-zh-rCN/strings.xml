@@ -57,6 +57,7 @@
     <string name="filter_system_apps">系统</string>
     <string name="filter_frozen_apps">已冻结</string>
     <string name="filter_unfrozen_apps">未冻结</string>
+    <string name="filter_show_clones">显示分身</string>
     <string name="sort_by">排序方式</string>
     <string name="sort_name">名称</string>
     <string name="sort_install">首次安装</string>

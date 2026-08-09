@@ -30,7 +30,7 @@ class AutoFreezeWorker(context: Context, params: WorkerParameters) : Worker(cont
         HailData.skipWhileCharging && HSystem.isCharging(context)
 
     private fun isSkipApp(context: Context, appInfo: AppInfo): Boolean =
-        AppManager.isAppFrozen(appInfo.packageName) || (HailData.skipForegroundApp && HSystem.isForegroundApp(
+        appInfo.applicationInfo?.let { AppManager.isAppFrozen(it) } == true || (HailData.skipForegroundApp && HSystem.isForegroundApp(
             context, appInfo.packageName
         )) || (HailData.skipNotifyingApp && AutoFreezeService.instance.activeNotifications.any { it.packageName == appInfo.packageName }) || appInfo.whitelisted
 }

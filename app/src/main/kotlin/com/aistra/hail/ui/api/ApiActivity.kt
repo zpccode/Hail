@@ -2,6 +2,7 @@ package com.aistra.hail.ui.api
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.pm.LauncherApps
 import android.content.pm.PackageManager.NameNotFoundException
 import android.net.Uri
 import android.os.Bundle
@@ -24,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
+import androidx.core.content.getSystemService
 import com.aistra.hail.HailApp.Companion.app
 import com.aistra.hail.R
 import com.aistra.hail.app.AppInfo
@@ -51,9 +53,9 @@ class ApiActivity : ComponentActivity() {
 
             Intent.ACTION_VIEW -> return handleSchema(intent.data)
 
-            HailApi.ACTION_LAUNCH -> launchApp(requirePackage, runCatching { requireTagId }.getOrNull())
-            HailApi.ACTION_FREEZE -> setAppFrozen(requirePackage, true)
-            HailApi.ACTION_UNFREEZE -> setAppFrozen(requirePackage, false)
+            HailApi.ACTION_LAUNCH -> launchApp(requirePackage, runCatching { requireTagId }.getOrNull(), requireUserId)
+            HailApi.ACTION_FREEZE -> setAppFrozen(requirePackage, true, requireUserId)
+            HailApi.ACTION_UNFREEZE -> setAppFrozen(requirePackage, false, requireUserId)
             HailApi.ACTION_FREEZE_TAG -> setListFrozen(
                 true, HailData.checkedList.filter { requireTagId in it.tagIdList }, true
             )
@@ -125,16 +127,16 @@ class ApiActivity : ComponentActivity() {
             )
             ClickableItem(
                 icon = Icons.AutoMirrored.Outlined.Launch, title = R.string.action_launch
-            ) { launchApp(pkg) }
+            ) { launchApp(pkg, userId = requireUserId) }
             ClickableItem(
                 icon = Icons.Rounded.AcUnit, title = R.string.action_freeze
             ) {
-                if (!HailData.isChecked(pkg)) HailData.addCheckedApp(pkg)
-                setAppFrozen(pkg, true)
+                if (!HailData.isChecked(pkg, requireUserId)) HailData.addCheckedApp(pkg, userId = requireUserId)
+                setAppFrozen(pkg, true, requireUserId)
             }
             ClickableItem(
                 icon = Icons.Rounded.BrightnessLow, title = R.string.action_unfreeze
-            ) { setAppFrozen(pkg, false) }
+            ) { setAppFrozen(pkg, false, requireUserId) }
         }
     }
 
@@ -177,6 +179,12 @@ class ApiActivity : ComponentActivity() {
             HPackages.getApplicationInfoOrNull(it) ?: throw NameNotFoundException(getString(R.string.app_not_installed))
         } ?: throw IllegalArgumentException("Package must not be null")
 
+    private val requireUserId: Int
+        get() = intent.run {
+            if (action == Intent.ACTION_VIEW) data?.getQueryParameter(HailData.KEY_USER_ID)?.toIntOrNull()
+            else getIntExtra(HailData.KEY_USER_ID, HPackages.myUserId)
+        } ?: HPackages.myUserId
+
     private val requireTagId: Int
         get() = intent.run {
             if (action == Intent.ACTION_VIEW) data?.getQueryParameter(HailData.KEY_TAG)
@@ -186,30 +194,34 @@ class ApiActivity : ComponentActivity() {
                 ?: throw IllegalStateException("Tag unavailable:\n$it")
         } ?: throw IllegalArgumentException("Tag must not be null")
 
-    private fun launchApp(pkg: String, tagId: Int? = null) {
+    private fun launchApp(pkg: String, tagId: Int? = null, userId: Int = HPackages.myUserId) {
         if (tagId != null) setListFrozen(false, HailData.checkedList.filter { tagId in it.tagIdList })
-        if (AppManager.isAppFrozen(pkg) && AppManager.setAppFrozen(pkg, false)) {
+        val appInfo = HPackages.getApplicationInfoOrNull(pkg, userId = userId)
+        if (appInfo != null && AppManager.isAppFrozen(appInfo) && AppManager.setAppFrozen(pkg, false, userId)) {
             app.setAutoFreezeService()
         }
         if (HailData.workingMode == HailData.MODE_ISLAND_HIDE) {
             HIsland.ensureLaunchIntentExists(packageName)
         }
-        packageManager.getLaunchIntentForPackage(pkg)?.let {
-            HShortcuts.addDynamicShortcut(pkg)
-            startActivity(it)
-        } ?: throw ActivityNotFoundException(getString(R.string.activity_not_found))
+        val launcherApps = getSystemService<LauncherApps>()!!
+        val userHandle = HPackages.getUserHandle(userId)
+        val activities = launcherApps.getActivityList(pkg, userHandle)
+        if (activities.isNotEmpty()) {
+            HShortcuts.addDynamicShortcut(pkg, userId)
+            launcherApps.startMainActivity(activities[0].componentName, userHandle, null, null)
+        } else throw ActivityNotFoundException(getString(R.string.activity_not_found))
     }
 
-    private fun setAppFrozen(pkg: String, frozen: Boolean) = when {
-        frozen && !HailData.isChecked(pkg) -> throw SecurityException("Package not checked")
-        AppManager.isAppFrozen(pkg) != frozen && !AppManager.setAppFrozen(
-            pkg, frozen
+    private fun setAppFrozen(pkg: String, frozen: Boolean, userId: Int = HPackages.myUserId) = when {
+        frozen && !HailData.isChecked(pkg, userId) -> throw SecurityException("Package not checked")
+        AppManager.isAppFrozen(HPackages.getApplicationInfoOrNull(pkg, userId = userId)!!) != frozen && !AppManager.setAppFrozen(
+            pkg, frozen, userId
         ) -> throw IllegalStateException(getString(R.string.permission_denied))
 
         else -> {
             HUI.showToast(
                 if (frozen) R.string.msg_freeze else R.string.msg_unfreeze,
-                HPackages.getApplicationInfoOrNull(pkg)?.loadLabel(packageManager) ?: pkg
+                HPackages.getApplicationInfoOrNull(pkg, userId = userId)?.loadLabel(packageManager) ?: pkg
             )
             app.setAutoFreezeService()
         }
@@ -219,7 +231,10 @@ class ApiActivity : ComponentActivity() {
         frozen: Boolean, list: List<AppInfo> = HailData.checkedList, skipWhitelisted: Boolean = false
     ) {
         val filtered =
-            list.filter { AppManager.isAppFrozen(it.packageName) != frozen && !(skipWhitelisted && it.whitelisted) }
+            list.filter {
+                val appInfo = it.applicationInfo
+                (appInfo != null && AppManager.isAppFrozen(appInfo) != frozen) && !(skipWhitelisted && it.whitelisted)
+            }
         when (val result = AppManager.setListFrozen(frozen, *filtered.toTypedArray())) {
             null -> throw IllegalStateException(getString(R.string.permission_denied))
             else -> {

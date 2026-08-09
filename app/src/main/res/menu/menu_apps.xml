@@ -32,6 +32,9 @@
                 <item
                         android:id="@+id/filter_unfrozen_apps"
                         android:title="@string/filter_unfrozen_apps"/>
+                <item
+                        android:id="@+id/filter_show_clones"
+                        android:title="@string/filter_show_clones"/>
             </group>
         </menu>
     </item>

@@ -21,7 +21,7 @@ class AppsAdapter : ListAdapter<ApplicationInfo, AppsAdapter.ViewHolder>(DIFF) {
         val DIFF = object : DiffUtil.ItemCallback<ApplicationInfo>() {
             override fun areItemsTheSame(
                 oldItem: ApplicationInfo, newItem: ApplicationInfo
-            ): Boolean = oldItem.packageName == newItem.packageName
+            ): Boolean = oldItem.packageName == newItem.packageName && oldItem.uid == newItem.uid
 
             override fun areContentsTheSame(oldItem: ApplicationInfo, newItem: ApplicationInfo): Boolean =
                 oldItem.flags and ApplicationInfo.FLAG_INSTALLED == newItem.flags and ApplicationInfo.FLAG_INSTALLED
@@ -60,18 +60,18 @@ class AppsAdapter : ListAdapter<ApplicationInfo, AppsAdapter.ViewHolder>(DIFF) {
                 isLongClickable = true
             }
             binding.appStar.setOnCheckedChangeListener { button, isChecked ->
-                if (!updating) onItemCheckedChangeListener.onItemCheckedChange(button, isChecked, pkg)
+                if (!updating) onItemCheckedChangeListener.onItemCheckedChange(button, isChecked, pkg, info.uid / 100000)
             }
         }
 
         fun bindInfo(info: ApplicationInfo) {
             updating = true
             this.info = info
-            val frozen = AppManager.isAppFrozen(pkg)
+            val frozen = AppManager.isAppFrozen(info)
 
             binding.appIcon.apply {
                 loadIconJob = AppIconCache.loadIconBitmapAsync(
-                    context, info, HPackages.myUserId, this, HailData.grayscaleIcon && frozen
+                    context, info, info.uid / 100000, this, HailData.grayscaleIcon && frozen
                 )
             }
             binding.appName.apply {
@@ -89,7 +89,7 @@ class AppsAdapter : ListAdapter<ApplicationInfo, AppsAdapter.ViewHolder>(DIFF) {
                 text = pkg
                 isEnabled = !HailData.grayscaleIcon || !frozen
             }
-            binding.appStar.isChecked = HailData.isChecked(pkg)
+            binding.appStar.isChecked = HailData.isChecked(pkg, info.uid / 100000)
             updating = false
         }
     }
@@ -99,6 +99,6 @@ class AppsAdapter : ListAdapter<ApplicationInfo, AppsAdapter.ViewHolder>(DIFF) {
     }
 
     interface OnItemCheckedChangeListener {
-        fun onItemCheckedChange(buttonView: CompoundButton, isChecked: Boolean, packageName: String)
+        fun onItemCheckedChange(buttonView: CompoundButton, isChecked: Boolean, packageName: String, userId: Int)
     }
 }

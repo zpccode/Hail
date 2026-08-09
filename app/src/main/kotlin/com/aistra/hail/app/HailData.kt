@@ -6,6 +6,7 @@ import com.aistra.hail.BuildConfig
 import com.aistra.hail.HailApp.Companion.app
 import com.aistra.hail.R
 import com.aistra.hail.utils.HFiles
+import com.aistra.hail.utils.HPackages
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -39,6 +40,8 @@ object HailData {
     const val FILTER_SYSTEM_APPS = "filter_system_apps"
     const val FILTER_FROZEN_APPS = "filter_frozen_apps"
     const val FILTER_UNFROZEN_APPS = "filter_unfrozen_apps"
+    const val FILTER_SHOW_CLONES = "filter_show_clones"
+    const val KEY_USER_ID = "user_id"
     const val OWNER = "owner_"
     const val DHIZUKU = "dhizuku_"
     const val SU = "su_"
@@ -136,6 +139,7 @@ object HailData {
     val filterSystemApps get() = sp.getBoolean(FILTER_SYSTEM_APPS, false)
     val filterFrozenApps get() = sp.getBoolean(FILTER_FROZEN_APPS, true)
     val filterUnfrozenApps get() = sp.getBoolean(FILTER_UNFROZEN_APPS, true)
+    val filterShowClones get() = sp.getBoolean(FILTER_SHOW_CLONES, false)
     val workingMode get() = sp.getString(WORKING_MODE, MODE_DEFAULT)!!
     val biometricLogin get() = sp.getBoolean(BIOMETRIC_LOGIN, false)
     val appTheme get() = sp.getString(APP_THEME, FOLLOW_SYSTEM)!!
@@ -168,6 +172,7 @@ object HailData {
                     add(with(json.getJSONObject(i)) {
                         AppInfo(
                             packageName = getString(KEY_PACKAGE),
+                            userId = optInt(KEY_USER_ID, HPackages.myUserId),
                             pinned = optBoolean(KEY_PINNED),
                             whitelisted = optBoolean(KEY_WHITELISTED),
                             tagIdList = optJSONArray(KEY_TAGS)?.let {
@@ -180,15 +185,17 @@ object HailData {
         }
     }
 
-    fun isChecked(packageName: String): Boolean = checkedList.any { it.packageName == packageName }
+    fun isChecked(packageName: String, userId: Int = HPackages.myUserId): Boolean =
+        checkedList.any { it.packageName == packageName && it.userId == userId }
 
-    fun addCheckedApp(packageName: String, tagId: Int = 0, saveApps: Boolean = true) {
-        checkedList.add(AppInfo(packageName, tagIdList = mutableListOf(tagId)))
+    fun addCheckedApp(packageName: String, tagId: Int = 0, saveApps: Boolean = true, userId: Int = HPackages.myUserId) {
+        if (isChecked(packageName, userId)) return
+        checkedList.add(AppInfo(packageName, userId, tagIdList = mutableListOf(tagId)))
         if (saveApps) saveApps()
     }
 
-    fun removeCheckedApp(packageName: String, saveApps: Boolean = true) {
-        checkedList.removeAll { it.packageName == packageName }
+    fun removeCheckedApp(packageName: String, saveApps: Boolean = true, userId: Int = HPackages.myUserId) {
+        checkedList.removeAll { it.packageName == packageName && it.userId == userId }
         if (saveApps) saveApps()
     }
 
@@ -199,6 +206,7 @@ object HailData {
                 put(
                     JSONObject()
                         .put(KEY_PACKAGE, it.packageName)
+                        .put(KEY_USER_ID, it.userId)
                         .put(KEY_PINNED, it.pinned)
                         .put(KEY_WHITELISTED, it.whitelisted)
                         .put(KEY_TAGS, JSONArray(it.tagIdList))

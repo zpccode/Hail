@@ -196,11 +196,15 @@ class AppsFragment : MainFragment(), AppsAdapter.OnItemClickListener, AppsAdapte
     }
 
     override fun onItemCheckedChange(
-        buttonView: CompoundButton, isChecked: Boolean, packageName: String
+        buttonView: CompoundButton, isChecked: Boolean, packageName: String, userId: Int
     ) {
-        if (isChecked) HailData.addCheckedApp(packageName)
-        else HailData.removeCheckedApp(packageName)
-        buttonView.isChecked = HailData.isChecked(packageName)
+        if (isChecked) {
+            if (!HailData.isChecked(packageName, userId)) {
+                HailData.addCheckedApp(packageName, userId = userId)
+            }
+        } else {
+            HailData.removeCheckedApp(packageName, userId = userId)
+        }
     }
 
     override fun onCreateMenu(menu: Menu, inflater: MenuInflater) {
@@ -237,6 +241,7 @@ class AppsFragment : MainFragment(), AppsAdapter.OnItemClickListener, AppsAdapte
         ).isChecked = true
         menu.findItem(R.id.filter_frozen_apps).isChecked = HailData.filterFrozenApps
         menu.findItem(R.id.filter_unfrozen_apps).isChecked = HailData.filterUnfrozenApps
+        menu.findItem(R.id.filter_show_clones).isChecked = HailData.filterShowClones
     }
 
     override fun onMenuItemSelected(item: MenuItem): Boolean {
@@ -252,6 +257,10 @@ class AppsFragment : MainFragment(), AppsAdapter.OnItemClickListener, AppsAdapte
 
             R.id.filter_frozen_apps -> changeAppsFilter(HailData.FILTER_FROZEN_APPS, item)
             R.id.filter_unfrozen_apps -> changeAppsFilter(HailData.FILTER_UNFROZEN_APPS, item)
+            R.id.filter_show_clones -> {
+                changeAppsFilter(HailData.FILTER_SHOW_CLONES, item)
+                updateAppList()
+            }
         }
         return false
     }

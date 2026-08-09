@@ -181,6 +181,7 @@ object HShizuku {
             HPackages.myUserId
         )
 
+
     private val suspendDialogInfo: Any
         @RequiresApi(Build.VERSION_CODES.Q) @SuppressLint("PrivateApi") get() = HiddenApiBypass.newInstance(
             Class.forName("android.content.pm.SuspendDialogInfo\$Builder")
