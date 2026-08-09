@@ -40,4 +40,16 @@ object HShell {
     fun setAppRestricted(packageName: String, restricted: Boolean, userId: Int = HPackages.myUserId) = execSU(
         "appops set ${userArg(userId)} $packageName RUN_ANY_IN_BACKGROUND ${if (restricted) "ignore" else "allow"}"
     ).first == 0
+
+    fun autoClickAddShortcut() {
+        val buttons = listOf("添加", "确定", "始终允许", "允许", "Add", "Confirm", "Allow")
+        val cmd = StringBuilder("uiautomator dump /sdcard/view.xml > /dev/null")
+        buttons.forEach { text ->
+            cmd.append(" && if grep -q \"text=\\\"$text\\\"\" /sdcard/view.xml; then ")
+            cmd.append("coords=\$(sed -n \"s/.*text=\\\"$text\\\".*bounds=\\\"\\[\\([0-9]*\\),\\([0-9]*\\)\\]\\[\\([0-9]*\\),\\([0-9]*\\)\\].*/\\1 \\2 \\3 \\4/p\" /sdcard/view.xml | head -1); ")
+            cmd.append("if [ ! -z \"\$coords\" ]; then set -- \$coords; ")
+            cmd.append("input tap \$(((\$1+\$3)/2)) \$(((\$2+\$4)/2)); fi; fi")
+        }
+        execSU(cmd.toString())
+    }
 }

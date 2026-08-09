@@ -24,29 +24,29 @@ object HShortcuts {
         )
     }
 
-    fun addPinShortcut(icon: Drawable, id: String, label: CharSequence, intent: Intent) {
-        addPinShortcut(getDrawableIcon(icon), id, label, intent)
+    fun addPinShortcut(icon: Drawable, id: String, label: CharSequence, intent: Intent, callback: android.content.IntentSender? = null) {
+        addPinShortcut(getDrawableIcon(icon), id, label, intent, callback)
     }
 
-    fun addPinShortcut(appInfo: AppInfo, id: String, label: CharSequence, intent: Intent) {
+    fun addPinShortcut(appInfo: AppInfo, id: String, label: CharSequence, intent: Intent, callback: android.content.IntentSender? = null) {
         appInfo.applicationInfo?.let {
             val icon = if (appInfo.userId == HPackages.myUserId) {
                 IconPack.loadIcon(it.packageName) ?: iconLoader.loadIcon(it)
             } else {
                 iconLoader.loadIcon(it)
             }
-            addPinShortcut(IconCompat.createWithBitmap(icon), id, label, intent)
+            addPinShortcut(IconCompat.createWithBitmap(icon), id, label, intent, callback)
         } ?: run {
-            addPinShortcut(app.packageManager.defaultActivityIcon, id, label, intent)
+            addPinShortcut(getDrawableIcon(app.packageManager.defaultActivityIcon), id, label, intent, callback)
         }
     }
 
-    private fun addPinShortcut(icon: IconCompat, id: String, label: CharSequence, intent: Intent) {
+    private fun addPinShortcut(icon: IconCompat, id: String, label: CharSequence, intent: Intent, callback: android.content.IntentSender? = null) {
         if (ShortcutManagerCompat.isRequestPinShortcutSupported(app)) {
             val shortcut =
                 ShortcutInfoCompat.Builder(app, id).setIcon(icon).setShortLabel(label)
                     .setIntent(intent).build()
-            ShortcutManagerCompat.requestPinShortcut(app, shortcut, null)
+            ShortcutManagerCompat.requestPinShortcut(app, shortcut, callback)
         } else HUI.showToast(
             R.string.operation_failed, app.getString(R.string.action_add_pin_shortcut)
         )

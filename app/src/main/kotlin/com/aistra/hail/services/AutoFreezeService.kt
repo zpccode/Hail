@@ -4,6 +4,7 @@ import android.app.PendingIntent
 import android.content.Intent
 import android.content.IntentFilter
 import android.service.notification.NotificationListenerService
+import androidx.core.content.ContextCompat
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -58,7 +59,12 @@ class AutoFreezeService : NotificationListenerService() {
     }
 
     private fun registerScreenReceiver() {
-        registerReceiver(lockReceiver, IntentFilter(Intent.ACTION_SCREEN_OFF))
+        ContextCompat.registerReceiver(
+            this,
+            lockReceiver,
+            IntentFilter(Intent.ACTION_SCREEN_OFF),
+            ContextCompat.RECEIVER_EXPORTED
+        )
     }
 
     override fun onDestroy() {

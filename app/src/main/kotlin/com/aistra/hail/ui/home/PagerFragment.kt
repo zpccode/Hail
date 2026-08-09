@@ -1,6 +1,11 @@
 package com.aistra.hail.ui.home
 
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.LauncherApps
+import androidx.core.content.ContextCompat
 import android.os.Bundle
 import android.provider.Settings
 import android.text.InputType
@@ -49,9 +54,7 @@ import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.tabs.TabLayout
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
 import org.json.JSONArray
 
 class PagerFragment : MainFragment(), PagerAdapter.OnItemClickListener, PagerAdapter.OnItemLongClickListener,
@@ -300,6 +303,7 @@ class PagerFragment : MainFragment(), PagerAdapter.OnItemClickListener, PagerAda
                 R.string.action_freeze,
                 R.string.action_unfreeze,
                 R.string.action_tag_set,
+                R.string.action_add_pin_shortcut,
                 R.string.action_export_clipboard,
                 R.string.action_remove_home,
                 R.string.action_unfreeze_remove_home
@@ -319,17 +323,63 @@ class PagerFragment : MainFragment(), PagerAdapter.OnItemClickListener, PagerAda
                 2 -> triStateTagDialog()
 
                 3 -> {
+                    val list = selectedList.toList()
+                    deselect()
+                    lifecycleScope.launch(Dispatchers.Main) {
+                        val action = "com.aistra.hail.SHORTCUT_ADDED"
+                        list.forEach { info ->
+                            val pkg = info.packageName
+                            val shortcutId = pkg + "_" + info.userId
+                            val deferred = CompletableDeferred<Unit>()
+                            val receiver = object : BroadcastReceiver() {
+                                override fun onReceive(context: Context, intent: Intent) {
+                                    deferred.complete(Unit)
+                                }
+                            }
+                            context?.let {
+                                ContextCompat.registerReceiver(
+                                    it,
+                                    receiver,
+                                    IntentFilter(action),
+                                    ContextCompat.RECEIVER_EXPORTED
+                                )
+                            }
+                            val intent = android.app.PendingIntent.getBroadcast(
+                                context, 0, Intent(action),
+                                android.app.PendingIntent.FLAG_ONE_SHOT or android.app.PendingIntent.FLAG_IMMUTABLE
+                            )
+                            
+                            HShortcuts.addPinShortcut(
+                                info, shortcutId, info.name, 
+                                HailApi.getIntentForPackage(HailApi.ACTION_LAUNCH, pkg, info.userId),
+                                intent.intentSender
+                            )
+
+                            if (HailData.workingMode.startsWith(HailData.SU)) {
+                                launch(Dispatchers.IO) {
+                                    delay(1000)
+                                    HShell.autoClickAddShortcut()
+                                }
+                            }
+
+                            withTimeoutOrNull(10000) { deferred.await() }
+                            runCatching { context?.unregisterReceiver(receiver) }
+                        }
+                    }
+                }
+
+                4 -> {
                     exportToClipboard(selectedList)
                     deselect()
                 }
 
-                4 -> {
-                    selectedList.forEach { removeCheckedApp(it.packageName, false) }
+                5 -> {
+                    selectedList.forEach { removeCheckedApp(it.packageName, false, it.userId) }
                     HailData.saveApps()
                     deselect()
                 }
 
-                5 -> {
+                6 -> {
                     setListFrozen(false, selectedList, false)
                     selectedList.forEach {
                         val appInfo = it.applicationInfo
